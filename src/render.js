@@ -2,7 +2,7 @@
 
 import { CONFIG, YARDS_PER_METER } from './config.js';
 
-export function render(ctx, ball, swing, lastShot) {
+export function render(ctx, ball, swing, lastShot, club) {
   const { width, height } = ctx.canvas;
   const r = CONFIG.render;
 
@@ -10,7 +10,7 @@ export function render(ctx, ball, swing, lastShot) {
   drawGround(ctx, width, height, r);
   drawTee(ctx, r);
   drawBall(ctx, ball, r);
-  drawHud(ctx, ball, swing, lastShot, r);
+  drawHud(ctx, ball, swing, lastShot, club, r);
   drawMeter(ctx, swing, r);
 }
 
@@ -57,16 +57,17 @@ function drawBall(ctx, ball, r) {
   ctx.stroke();
 }
 
-function drawHud(ctx, ball, swing, lastShot, r) {
+function drawHud(ctx, ball, swing, lastShot, club, r) {
   const yards = ((ball.x - CONFIG.tee.x) * YARDS_PER_METER).toFixed(1);
   ctx.fillStyle = r.colors.hudText;
   ctx.font = '16px system-ui, sans-serif';
   ctx.textBaseline = 'top';
   ctx.fillText(`Distance: ${yards} yd`, 16, 14);
   ctx.fillText(`Ball: ${ball.mode}`, 16, 36);
+  ctx.fillText(`Club: ${club.name} — ${club.carryYds} yd`, 16, 58);
 
   if (ball.mode === 'rest' && swing.phase === 'idle') {
-    ctx.fillText('Space / click: start swing — R: reset to tee', 16, 58);
+    ctx.fillText('Space / click: swing — 1-8 / arrows: club — R: reset', 16, 80);
   }
   if (lastShot) {
     const power = Math.round(lastShot.power * 100);
@@ -75,7 +76,7 @@ function drawHud(ctx, ball, swing, lastShot, r) {
     else if (lastShot.perfect) text = `Perfect! ${power}% power`;
     else text = `${power}% power, miss ${(lastShot.error * 100).toFixed(0)}`;
     ctx.fillStyle = lastShot.mishit ? r.colors.shotBad : r.colors.shotGood;
-    ctx.fillText(text, 16, 80);
+    ctx.fillText(text, 16, 102);
   }
 }
 

@@ -63,7 +63,7 @@ test('air drag shortens carry', () => {
 test('bounce keeps restitution fraction of vertical speed', () => {
   const cfg = makeConfig({ airDrag: 0 }, { restitution: 0.5, bounceFriction: 1, minBounceSpeed: 0.1 });
   // Falling ball just above the ground.
-  const ball = { x: 0, y: 0.01, vx: 5, vy: -10, mode: 'flight', restTimer: 0 };
+  const ball = { x: 0, y: 0.01, vx: 5, vy: -10, lift: 0, mode: 'flight', restTimer: 0 };
   const after = stepBall(ball, DT, cfg);
   assert.equal(after.mode, 'flight');
   assert.equal(after.y, 0);
@@ -73,7 +73,7 @@ test('bounce keeps restitution fraction of vertical speed', () => {
 
 test('slow landing transitions to roll instead of bouncing', () => {
   const cfg = makeConfig({ airDrag: 0 }, { restitution: 0.4, minBounceSpeed: 5 });
-  const ball = { x: 0, y: 0.001, vx: 3, vy: -2, mode: 'flight', restTimer: 0 };
+  const ball = { x: 0, y: 0.001, vx: 3, vy: -2, lift: 0, mode: 'flight', restTimer: 0 };
   const after = stepBall(ball, DT, cfg);
   assert.equal(after.mode, 'roll');
   assert.equal(after.vy, 0);
@@ -81,7 +81,7 @@ test('slow landing transitions to roll instead of bouncing', () => {
 
 test('rolling ball decelerates and comes to rest', () => {
   const cfg = makeConfig();
-  let ball = { x: 0, y: 0, vx: 8, vy: 0, mode: 'roll', restTimer: 0 };
+  let ball = { x: 0, y: 0, vx: 8, vy: 0, lift: 0, mode: 'roll', restTimer: 0 };
   const states = simulate(ball, cfg);
   const final = states.at(-1);
   assert.equal(final.mode, 'rest');
@@ -93,9 +93,19 @@ test('rolling ball decelerates and comes to rest', () => {
   }
 });
 
+test('backspin lift raises the apex and extends carry', () => {
+  const stopDead = { restitution: 0, bounceFriction: 0, minBounceSpeed: Infinity };
+  const cfg = makeConfig({}, stopDead);
+  const apexOf = (states) => Math.max(...states.map((s) => s.y));
+  const flat = simulate(launch(createBall(0, 0), 60, 12, 0), cfg);
+  const lifted = simulate(launch(createBall(0, 0), 60, 12, 0.004), cfg);
+  assert.ok(apexOf(lifted) > apexOf(flat) * 1.5);
+  assert.ok(lifted.at(-1).x > flat.at(-1).x * 1.2);
+});
+
 test('full shot with default config lands, rolls, and rests beyond the tee', () => {
   const cfg = makeConfig();
-  const states = simulate(launch(createBall(0, 0), CONFIG.launch.speed, CONFIG.launch.angleDeg), cfg);
+  const states = simulate(launch(createBall(0, 0), 42, 26), cfg);
   const final = states.at(-1);
   assert.equal(final.mode, 'rest');
   assert.ok(final.x > 50, `expected a real carry, got ${final.x} m`);

@@ -4,14 +4,18 @@
 import { CONFIG } from './config.js';
 import { createBall, launch, stepBall } from './physics.js';
 import { createSwing, updateSwing, pressSwing, resolveShot, isPerfect } from './swing.js';
+import { buildClubs, nextClub, prevClub } from './clubs.js';
 import { render } from './render.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
+const clubs = buildClubs(CONFIG);
+
 let ball = createBall(CONFIG.tee.x, 0);
 let prevBall = ball;
 let swing = createSwing();
+let clubIndex = 0; // driver
 let lastShot = null; // feedback for the HUD: {power, error, mishit, perfect}
 let accumulator = 0;
 let lastTime = null;
@@ -23,14 +27,20 @@ function press() {
 }
 
 function hit() {
-  const shot = resolveShot(swing, CONFIG.swing, CONFIG.launch, Math.random);
+  const club = clubs[clubIndex];
+  const shot = resolveShot(
+    swing,
+    CONFIG.swing,
+    { speed: club.speed, angleDeg: club.loftDeg },
+    Math.random,
+  );
   lastShot = {
     power: swing.power,
     error: swing.error,
     mishit: shot.mishit,
     perfect: isPerfect(swing.error, CONFIG.swing),
   };
-  ball = launch(ball, shot.speed, shot.angleDeg);
+  ball = launch(ball, shot.speed, shot.angleDeg, club.lift);
   prevBall = ball;
   swing = createSwing();
 }
@@ -43,12 +53,30 @@ function reset() {
   accumulator = 0;
 }
 
+// Club changes are only allowed between swings.
+function canChangeClub() {
+  return ball.mode === 'rest' && swing.phase === 'idle';
+}
+
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') {
     e.preventDefault();
     press();
-  } else if (e.code === 'KeyR') {
+    return;
+  }
+  if (e.code === 'KeyR') {
     reset();
+    return;
+  }
+  if (!canChangeClub()) return;
+  const digit = /^Digit([1-9])$/.exec(e.code);
+  if (digit) {
+    const i = Number(digit[1]) - 1;
+    if (i < clubs.length) clubIndex = i;
+  } else if (e.code === 'ArrowDown' || e.code === 'ArrowRight') {
+    clubIndex = nextClub(clubIndex, clubs.length); // shorter club
+  } else if (e.code === 'ArrowUp' || e.code === 'ArrowLeft') {
+    clubIndex = prevClub(clubIndex); // longer club
   }
 });
 canvas.addEventListener('mousedown', press);
@@ -76,7 +104,7 @@ function frame(now) {
     x: prevBall.x + (ball.x - prevBall.x) * alpha,
     y: prevBall.y + (ball.y - prevBall.y) * alpha,
   };
-  render(ctx, view, swing, lastShot);
+  render(ctx, view, swing, lastShot, clubs[clubIndex]);
 
   requestAnimationFrame(frame);
 }

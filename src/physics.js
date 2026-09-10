@@ -8,16 +8,18 @@
 // mode is one of 'rest' | 'flight' | 'roll'.
 
 export function createBall(x = 0, y = 0) {
-  return { x, y, vx: 0, vy: 0, mode: 'rest', restTimer: 0 };
+  return { x, y, vx: 0, vy: 0, lift: 0, mode: 'rest', restTimer: 0 };
 }
 
 // Returns a new ball state launched from the ball's current position.
-export function launch(ball, speed, angleDeg) {
+// `lift` is the shot's backspin lift coefficient (per club, see config.js).
+export function launch(ball, speed, angleDeg, lift = 0) {
   const angle = (angleDeg * Math.PI) / 180;
   return {
     ...ball,
     vx: speed * Math.cos(angle),
     vy: speed * Math.sin(angle),
+    lift,
     mode: 'flight',
     restTimer: 0,
   };
@@ -39,8 +41,11 @@ export function stepBall(ball, dt, cfg) {
 function stepFlight(ball, dt, cfg) {
   const { gravity, airDrag } = cfg.physics;
   const speed = Math.hypot(ball.vx, ball.vy);
-  const ax = -airDrag * speed * ball.vx;
-  const ay = -gravity - airDrag * speed * ball.vy;
+  // Backspin lift: quadratic like drag, perpendicular to velocity — the
+  // velocity rotated 90° counter-clockwise, so it points up while the ball
+  // moves forward. Coefficient is per shot (per club).
+  const ax = -airDrag * speed * ball.vx - ball.lift * speed * ball.vy;
+  const ay = -gravity - airDrag * speed * ball.vy + ball.lift * speed * ball.vx;
 
   // Semi-implicit Euler: update velocity first, then position with it.
   const vx = ball.vx + ax * dt;

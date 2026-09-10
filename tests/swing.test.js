@@ -6,7 +6,9 @@ import {
 import { CONFIG } from '../src/config.js';
 
 const S = CONFIG.swing;
-const LAUNCH = CONFIG.launch;
+// Shot resolution takes launch params from the selected club (see clubs.js);
+// any fixed pair works for testing the swing math itself.
+const LAUNCH = { speed: 42, angleDeg: 26 };
 const DT = CONFIG.physics.timestep;
 
 function advance(swing, seconds) {

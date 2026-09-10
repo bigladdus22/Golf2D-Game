@@ -11,7 +11,8 @@ export const CONFIG = {
     maxStepsPerFrame: 10,
     gravity: 9.81, // m/s^2
     // Quadratic air drag: acceleration = -airDrag * |v| * v
-    airDrag: 0.0075, // 1/m
+    // (~0.0056 matches a real golf ball; slightly lower plays nicer here.)
+    airDrag: 0.005, // 1/m
     // Below this speed the ball is a candidate for coming to rest.
     restSpeed: 0.2, // m/s
     // The ball must stay below restSpeed this long to count as at rest.
@@ -30,11 +31,27 @@ export const CONFIG = {
     rollFriction: 0.4,
   },
 
-  // Base shot at 100% power with a perfect accuracy click.
-  // (Per-club values arrive in milestone 3.)
-  launch: {
-    speed: 42, // m/s
-    angleDeg: 26,
+  // Club data: loft is the launch angle; carry is the target full-power
+  // perfect-shot carry. Launch speed is derived at startup by calibrating
+  // against the physics (see clubs.js), so carries hold even if drag changes.
+  // Ordered longest to shortest. The putter joins in milestone 5 with
+  // putting mode (ground roll only).
+  // lift is the backspin lift coefficient (quadratic, like drag): more
+  // lofted clubs spin more, so they get more lift and higher arcs.
+  clubs: [
+    { name: 'Driver', loftDeg: 10.5, carryYds: 230, lift: 0.0035 },
+    { name: '3W', loftDeg: 15, carryYds: 210, lift: 0.0035 },
+    { name: '4H', loftDeg: 22, carryYds: 190, lift: 0.004 },
+    { name: '5i', loftDeg: 26, carryYds: 175, lift: 0.004 },
+    { name: '7i', loftDeg: 33, carryYds: 150, lift: 0.0045 },
+    { name: '9i', loftDeg: 41, carryYds: 125, lift: 0.0045 },
+    { name: 'PW', loftDeg: 46, carryYds: 110, lift: 0.005 },
+    { name: 'SW', loftDeg: 56, carryYds: 80, lift: 0.005 },
+  ],
+  clubCalibration: {
+    minSpeed: 5, // m/s, binary-search bounds for the launch speed
+    maxSpeed: 130,
+    iterations: 40,
   },
 
   // Three-click swing meter. Meter position runs 0..1: it climbs during the
@@ -63,7 +80,9 @@ export const CONFIG = {
   },
 
   render: {
-    pxPerMeter: 4.2,
+    // Wide enough that a full driver (carry + roll) stays on screen until
+    // the follow camera arrives in milestone 4.
+    pxPerMeter: 3.5,
     groundScreenY: 480, // canvas y of the ground line
     ballRadiusPx: 5, // drawn oversized for visibility
     meter: {
