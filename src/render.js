@@ -1,24 +1,27 @@
 // All drawing. Reads state, never mutates it.
 
 import { CONFIG, YARDS_PER_METER } from './config.js';
+import { heightAt } from './course.js';
 
-export function render(ctx, ball, swing, lastShot, club) {
+// scene: { ball, swing, lastShot, club, cam, hole, strokes, notice }
+export function render(ctx, scene) {
   const { width, height } = ctx.canvas;
   const r = CONFIG.render;
+  const w2s = makeTransform(scene.cam, r);
 
   drawSky(ctx, width, height, r);
-  drawGround(ctx, width, height, r);
-  drawTee(ctx, r);
-  drawBall(ctx, ball, r);
-  drawHud(ctx, ball, swing, lastShot, club, r);
-  drawMeter(ctx, swing, r);
+  drawTerrain(ctx, scene.hole, w2s, width, height, r);
+  drawFlag(ctx, scene.hole, w2s, r);
+  drawBall(ctx, scene.ball, w2s, r);
+  drawHud(ctx, scene, r);
+  drawMeter(ctx, scene.swing, r);
 }
 
-function worldToScreen(x, y, r) {
-  return {
-    sx: x * r.pxPerMeter,
+function makeTransform(cam, r) {
+  return (x, y) => ({
+    sx: (x - cam.x) * r.pxPerMeter,
     sy: r.groundScreenY - y * r.pxPerMeter,
-  };
+  });
 }
 
 function drawSky(ctx, width, height, r) {
@@ -29,25 +32,64 @@ function drawSky(ctx, width, height, r) {
   ctx.fillRect(0, 0, width, height);
 }
 
-function drawGround(ctx, width, height, r) {
-  ctx.fillStyle = r.colors.ground;
-  ctx.fillRect(0, r.groundScreenY, width, height - r.groundScreenY);
-  ctx.strokeStyle = r.colors.groundLine;
+function drawTerrain(ctx, hole, w2s, width, height, r) {
+  const pts = hole.points;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const sa = w2s(a.x, a.y);
+    const sb = w2s(b.x, b.y);
+    if (sb.sx < 0 || sa.sx > width) continue;
+    ctx.fillStyle = r.colors[a.surface] ?? r.colors.out;
+    ctx.beginPath();
+    ctx.moveTo(sa.sx, sa.sy);
+    ctx.lineTo(sb.sx, sb.sy);
+    ctx.lineTo(sb.sx, height);
+    ctx.lineTo(sa.sx, height);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Out of bounds beyond the terrain, if visible.
+  const lastS = w2s(pts.at(-1).x, pts.at(-1).y);
+  if (lastS.sx < width) {
+    ctx.fillStyle = r.colors.out;
+    ctx.fillRect(lastS.sx, lastS.sy, width - lastS.sx, height - lastS.sy);
+  }
+  const firstS = w2s(pts[0].x, pts[0].y);
+  if (firstS.sx > 0) {
+    ctx.fillStyle = r.colors.out;
+    ctx.fillRect(0, firstS.sy, firstS.sx, height - firstS.sy);
+  }
+}
+
+function drawFlag(ctx, hole, w2s, r) {
+  const baseY = heightAt(hole, hole.cupX);
+  const base = w2s(hole.cupX, baseY);
+  const top = w2s(hole.cupX, baseY + r.flagHeightM);
+
+  // Cup marker (visual only until milestone 5).
+  ctx.fillStyle = r.colors.cup;
+  ctx.fillRect(base.sx - 3, base.sy, 6, 4);
+
+  ctx.strokeStyle = r.colors.flagPole;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(0, r.groundScreenY);
-  ctx.lineTo(width, r.groundScreenY);
+  ctx.moveTo(base.sx, base.sy);
+  ctx.lineTo(top.sx, top.sy);
   ctx.stroke();
+
+  const clothH = (base.sy - top.sy) * 0.28;
+  ctx.fillStyle = r.colors.flagCloth;
+  ctx.beginPath();
+  ctx.moveTo(top.sx, top.sy);
+  ctx.lineTo(top.sx + clothH * 1.6, top.sy + clothH / 2);
+  ctx.lineTo(top.sx, top.sy + clothH);
+  ctx.closePath();
+  ctx.fill();
 }
 
-function drawTee(ctx, r) {
-  const { sx, sy } = worldToScreen(CONFIG.tee.x, 0, r);
-  ctx.fillStyle = r.colors.groundLine;
-  ctx.fillRect(sx - 1.5, sy - 4, 3, 4);
-}
-
-function drawBall(ctx, ball, r) {
-  const { sx, sy } = worldToScreen(ball.x, ball.y, r);
+function drawBall(ctx, ball, w2s, r) {
+  const { sx, sy } = w2s(ball.x, ball.y);
   ctx.beginPath();
   ctx.arc(sx, sy - r.ballRadiusPx, r.ballRadiusPx, 0, Math.PI * 2);
   ctx.fillStyle = r.colors.ball;
@@ -57,17 +99,19 @@ function drawBall(ctx, ball, r) {
   ctx.stroke();
 }
 
-function drawHud(ctx, ball, swing, lastShot, club, r) {
-  const yards = ((ball.x - CONFIG.tee.x) * YARDS_PER_METER).toFixed(1);
+function drawHud(ctx, scene, r) {
+  const { ball, swing, lastShot, club, hole, strokes, notice } = scene;
+  const toFlagYds = Math.abs(hole.cupX - ball.x) * YARDS_PER_METER;
+
   ctx.fillStyle = r.colors.hudText;
   ctx.font = '16px system-ui, sans-serif';
   ctx.textBaseline = 'top';
-  ctx.fillText(`Distance: ${yards} yd`, 16, 14);
-  ctx.fillText(`Ball: ${ball.mode}`, 16, 36);
+  ctx.fillText(`Hole 1 · Par ${hole.par} · Stroke ${strokes}`, 16, 14);
+  ctx.fillText(`To flag: ${toFlagYds.toFixed(0)} yd`, 16, 36);
   ctx.fillText(`Club: ${club.name} — ${club.carryYds} yd`, 16, 58);
 
   if (ball.mode === 'rest' && swing.phase === 'idle') {
-    ctx.fillText('Space / click: swing — 1-8 / arrows: club — R: reset', 16, 80);
+    ctx.fillText('Space / click: swing — 1-8 / arrows: club — R: restart hole', 16, 80);
   }
   if (lastShot) {
     const power = Math.round(lastShot.power * 100);
@@ -77,6 +121,11 @@ function drawHud(ctx, ball, swing, lastShot, club, r) {
     else text = `${power}% power, miss ${(lastShot.error * 100).toFixed(0)}`;
     ctx.fillStyle = lastShot.mishit ? r.colors.shotBad : r.colors.shotGood;
     ctx.fillText(text, 16, 102);
+  }
+  if (notice) {
+    ctx.fillStyle = r.colors.notice;
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.fillText(notice, 16, 128);
   }
 }
 

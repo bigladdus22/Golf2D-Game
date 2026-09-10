@@ -1,22 +1,38 @@
-// Bootstrap + game loop. Fixed-timestep simulation decoupled from frame rate,
-// with rendering interpolated between the two most recent physics states.
+// Bootstrap + game loop + rules (strokes, penalties). Fixed-timestep
+// simulation decoupled from frame rate; rendering interpolates between the
+// two most recent physics states.
 
 import { CONFIG } from './config.js';
 import { createBall, launch, stepBall } from './physics.js';
 import { createSwing, updateSwing, pressSwing, resolveShot, isPerfect } from './swing.js';
 import { buildClubs, nextClub, prevClub } from './clubs.js';
+import { loadHole, terrainAdapter, heightAt, waterDropX } from './course.js';
+import { createCamera, updateCamera } from './camera.js';
 import { render } from './render.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 const clubs = buildClubs(CONFIG);
+const hole = await loadHole('./holes/hole1.json');
+const terrain = terrainAdapter(hole);
+const simCfg = { physics: CONFIG.physics, surfaces: CONFIG.surfaces, ground: CONFIG.ground, terrain };
+const viewWidthM = canvas.width / CONFIG.render.pxPerMeter;
 
-let ball = createBall(CONFIG.tee.x, 0);
+function ballAt(x) {
+  return createBall(x, heightAt(hole, x));
+}
+
+let ball = ballAt(hole.teeX);
 let prevBall = ball;
+let preShotBall = ball; // where the last stroke was played from (OB replay)
 let swing = createSwing();
+let cam = createCamera();
 let clubIndex = 0; // driver
+let strokes = 0;
 let lastShot = null; // feedback for the HUD: {power, error, mishit, perfect}
+let notice = null; // penalty message: {text, until}
+let clock = 0; // simulated seconds since load
 let accumulator = 0;
 let lastTime = null;
 
@@ -40,16 +56,43 @@ function hit() {
     mishit: shot.mishit,
     perfect: isPerfect(swing.error, CONFIG.swing),
   };
+  strokes += 1;
+  preShotBall = ball;
+  notice = null;
   ball = launch(ball, shot.speed, shot.angleDeg, club.lift);
   prevBall = ball;
   swing = createSwing();
 }
 
-function reset() {
-  ball = createBall(CONFIG.tee.x, 0);
+function showNotice(text) {
+  notice = { text, until: clock + CONFIG.render.noticeSeconds };
+}
+
+// Hazard outcomes reported by the physics ('water' / 'out' modes).
+function applyRules() {
+  if (ball.mode === 'water') {
+    strokes += CONFIG.rules.waterPenalty;
+    const dropX = waterDropX(hole, ball.x, CONFIG.rules.waterDropMargin);
+    ball = ballAt(dropX);
+    showNotice(`Water! +${CONFIG.rules.waterPenalty} penalty — dropped at entry`);
+  } else if (ball.mode === 'out') {
+    strokes += CONFIG.rules.outPenalty;
+    ball = { ...preShotBall };
+    showNotice(`Out of bounds! +${CONFIG.rules.outPenalty} penalty — replay`);
+  } else {
+    return;
+  }
   prevBall = ball;
+}
+
+function restartHole() {
+  ball = ballAt(hole.teeX);
+  prevBall = ball;
+  preShotBall = ball;
   swing = createSwing();
+  strokes = 0;
   lastShot = null;
+  notice = null;
   accumulator = 0;
 }
 
@@ -65,7 +108,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.code === 'KeyR') {
-    reset();
+    restartHole();
     return;
   }
   if (!canChangeClub()) return;
@@ -92,11 +135,16 @@ function frame(now) {
 
   while (accumulator >= dt) {
     prevBall = ball;
-    ball = stepBall(ball, dt, CONFIG);
+    ball = stepBall(ball, dt, simCfg);
+    applyRules();
     swing = updateSwing(swing, dt, CONFIG.swing);
     if (swing.phase === 'done') hit(); // meter ran out un-clicked: late miss
+    cam = updateCamera(cam, ball.x, dt, CONFIG.camera, viewWidthM, hole.points[0].x, hole.points.at(-1).x);
+    clock += dt;
     accumulator -= dt;
   }
+
+  if (notice && clock > notice.until) notice = null;
 
   const alpha = accumulator / dt;
   const view = {
@@ -104,7 +152,16 @@ function frame(now) {
     x: prevBall.x + (ball.x - prevBall.x) * alpha,
     y: prevBall.y + (ball.y - prevBall.y) * alpha,
   };
-  render(ctx, view, swing, lastShot, clubs[clubIndex]);
+  render(ctx, {
+    ball: view,
+    swing,
+    lastShot,
+    club: clubs[clubIndex],
+    cam,
+    hole,
+    strokes,
+    notice: notice?.text ?? null,
+  });
 
   requestAnimationFrame(frame);
 }

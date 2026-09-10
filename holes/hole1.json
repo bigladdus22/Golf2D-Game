@@ -1,0 +1,23 @@
+{
+  "par": 4,
+  "teeX": 20,
+  "cupX": 356,
+  "terrain": [
+    { "x": 0, "y": 0, "surface": "rough" },
+    { "x": 14, "y": 0, "surface": "fairway" },
+    { "x": 60, "y": 0.5, "surface": "fairway" },
+    { "x": 110, "y": 1.5, "surface": "fairway" },
+    { "x": 150, "y": 1.0, "surface": "fairway" },
+    { "x": 185, "y": 0.2, "surface": "water" },
+    { "x": 205, "y": 0.2, "surface": "fairway" },
+    { "x": 250, "y": 1.2, "surface": "fairway" },
+    { "x": 300, "y": 2.0, "surface": "fairway" },
+    { "x": 322, "y": 1.8, "surface": "bunker" },
+    { "x": 328, "y": 1.2, "surface": "bunker" },
+    { "x": 334, "y": 1.9, "surface": "green" },
+    { "x": 345, "y": 2.2, "surface": "green" },
+    { "x": 378, "y": 2.2, "surface": "rough" },
+    { "x": 395, "y": 1.5, "surface": "rough" },
+    { "x": 400, "y": 1.5, "surface": "out" }
+  ]
+}

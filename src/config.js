@@ -19,16 +19,35 @@ export const CONFIG = {
     restDuration: 0.25, // s
   },
 
-  // Flat ground for milestone 1. Values roughly "fairway".
+  // Fallback ground when the sim runs without terrain (unit tests, club
+  // calibration). Same numbers as the fairway surface.
   ground: {
-    // Fraction of vertical speed kept after a bounce.
-    restitution: 0.42,
-    // Fraction of horizontal speed kept through a bounce.
-    bounceFriction: 0.72,
-    // If vertical speed after a bounce is below this, the ball starts rolling.
-    minBounceSpeed: 1.2, // m/s
-    // Rolling deceleration = rollFriction * gravity.
-    rollFriction: 0.4,
+    restitution: 0.42, // fraction of normal speed kept after a bounce
+    bounceFriction: 0.72, // fraction of tangential speed kept through a bounce
+    minBounceSpeed: 1.2, // m/s — below this a bounce becomes a roll
+    rollFriction: 0.4, // rolling deceleration = rollFriction * gravity
+  },
+
+  // Per-surface landing/rolling behaviour.
+  surfaces: {
+    fairway: { restitution: 0.42, bounceFriction: 0.72, minBounceSpeed: 1.2, rollFriction: 0.4 },
+    rough: { restitution: 0.2, bounceFriction: 0.45, minBounceSpeed: 1.2, rollFriction: 1.4 },
+    green: { restitution: 0.35, bounceFriction: 0.75, minBounceSpeed: 1.0, rollFriction: 0.12 },
+    bunker: { restitution: 0.05, bounceFriction: 0.15, minBounceSpeed: 2.0, rollFriction: 2.5 },
+  },
+
+  rules: {
+    waterPenalty: 1,
+    outPenalty: 1,
+    // The water drop sits this far before the hazard's entry edge.
+    waterDropMargin: 1.5, // m
+  },
+
+  camera: {
+    // Ball sits this fraction of the view width from the left edge.
+    lead: 0.35,
+    // Follow smoothing: higher snaps faster. Applied as 1 - exp(-k * dt).
+    stiffness: 3.5,
   },
 
   // Club data: loft is the launch angle; carry is the target full-power
@@ -75,16 +94,12 @@ export const CONFIG = {
     },
   },
 
-  tee: {
-    x: 15, // m from world origin
-  },
-
   render: {
-    // Wide enough that a full driver (carry + roll) stays on screen until
-    // the follow camera arrives in milestone 4.
-    pxPerMeter: 3.5,
+    pxPerMeter: 4.5,
     groundScreenY: 480, // canvas y of the ground line
     ballRadiusPx: 5, // drawn oversized for visibility
+    flagHeightM: 2.4, // pole height in world metres
+    noticeSeconds: 3, // how long penalty messages stay up
     meter: {
       x: 280, // left edge, canvas px
       y: 505, // top edge, canvas px
@@ -94,11 +109,19 @@ export const CONFIG = {
     colors: {
       skyTop: '#8ec9f0',
       skyBottom: '#d8ecf7',
-      ground: '#4f9642',
-      groundLine: '#3a7330',
       ball: '#ffffff',
       ballOutline: '#5b6770',
       hudText: '#17301c',
+      fairway: '#4f9642',
+      rough: '#3b7031',
+      green: '#5fb84e',
+      bunker: '#e0c98f',
+      water: '#3d7dc4',
+      out: '#8a6f4d',
+      flagPole: '#f2f2f2',
+      flagCloth: '#d8352a',
+      cup: '#1a2b18',
+      notice: '#a03232',
       meterTrack: '#2b3440',
       meterFill: '#e8b23a',
       meterPowerLock: '#e05252',
