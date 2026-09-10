@@ -2,7 +2,7 @@
 
 import { CONFIG, YARDS_PER_METER } from './config.js';
 
-export function render(ctx, ball) {
+export function render(ctx, ball, swing, lastShot) {
   const { width, height } = ctx.canvas;
   const r = CONFIG.render;
 
@@ -10,7 +10,8 @@ export function render(ctx, ball) {
   drawGround(ctx, width, height, r);
   drawTee(ctx, r);
   drawBall(ctx, ball, r);
-  drawHud(ctx, ball, r);
+  drawHud(ctx, ball, swing, lastShot, r);
+  drawMeter(ctx, swing, r);
 }
 
 function worldToScreen(x, y, r) {
@@ -56,14 +57,61 @@ function drawBall(ctx, ball, r) {
   ctx.stroke();
 }
 
-function drawHud(ctx, ball, r) {
+function drawHud(ctx, ball, swing, lastShot, r) {
   const yards = ((ball.x - CONFIG.tee.x) * YARDS_PER_METER).toFixed(1);
   ctx.fillStyle = r.colors.hudText;
   ctx.font = '16px system-ui, sans-serif';
   ctx.textBaseline = 'top';
   ctx.fillText(`Distance: ${yards} yd`, 16, 14);
   ctx.fillText(`Ball: ${ball.mode}`, 16, 36);
-  if (ball.mode === 'rest') {
-    ctx.fillText('Space / click: hit — R: reset to tee', 16, 58);
+
+  if (ball.mode === 'rest' && swing.phase === 'idle') {
+    ctx.fillText('Space / click: start swing — R: reset to tee', 16, 58);
   }
+  if (lastShot) {
+    const power = Math.round(lastShot.power * 100);
+    let text;
+    if (lastShot.mishit) text = `Mishit! ${power}% power`;
+    else if (lastShot.perfect) text = `Perfect! ${power}% power`;
+    else text = `${power}% power, miss ${(lastShot.error * 100).toFixed(0)}`;
+    ctx.fillStyle = lastShot.mishit ? r.colors.shotBad : r.colors.shotGood;
+    ctx.fillText(text, 16, 80);
+  }
+}
+
+// Horizontal three-click meter: needle sweeps right for power, then returns
+// left toward the sweet spot near the bar's start.
+function drawMeter(ctx, swing, r) {
+  if (swing.phase !== 'power' && swing.phase !== 'accuracy') return;
+  const m = r.meter;
+  const s = CONFIG.swing;
+  const posX = (t) => m.x + t * m.width;
+
+  ctx.fillStyle = r.colors.meterTrack;
+  ctx.fillRect(m.x - 4, m.y - 4, m.width + 8, m.height + 8);
+
+  // Current fill up to the needle.
+  ctx.fillStyle = r.colors.meterFill;
+  ctx.fillRect(m.x, m.y, swing.pos * m.width, m.height);
+
+  // Sweet spot band (accuracy target).
+  ctx.fillStyle = r.colors.meterSweetSpot;
+  const sweetX = posX(s.sweetSpot - s.perfectWindow);
+  ctx.fillRect(sweetX, m.y, 2 * s.perfectWindow * m.width, m.height);
+
+  // Locked power mark once the second click happened.
+  if (swing.power !== null) {
+    ctx.fillStyle = r.colors.meterPowerLock;
+    ctx.fillRect(posX(swing.power) - 1.5, m.y - 4, 3, m.height + 8);
+  }
+
+  // Needle.
+  ctx.fillStyle = r.colors.meterNeedle;
+  ctx.fillRect(posX(swing.pos) - 1, m.y - 4, 2, m.height + 8);
+
+  ctx.fillStyle = r.colors.meterNeedle;
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  const label = swing.phase === 'power' ? 'click: set power' : 'click: accuracy!';
+  ctx.fillText(label, m.x + m.width + 14, m.y + m.height / 2);
 }

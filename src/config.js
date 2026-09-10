@@ -30,10 +30,32 @@ export const CONFIG = {
     rollFriction: 0.4,
   },
 
-  // Milestone 1: every shot uses this fixed launch.
+  // Base shot at 100% power with a perfect accuracy click.
+  // (Per-club values arrive in milestone 3.)
   launch: {
     speed: 42, // m/s
     angleDeg: 26,
+  },
+
+  // Three-click swing meter. Meter position runs 0..1: it climbs during the
+  // power phase, then returns toward 0 where the sweet spot sits.
+  swing: {
+    meterSpeed: 0.9, // meter travel per second (fraction of the bar)
+    sweetSpot: 0.06, // accuracy target position on the way back down
+    // Accuracy error = |click position - sweetSpot|, in bar fraction.
+    perfectWindow: 0.015, // error at or below this counts as perfect
+    mishitError: 0.2, // error at or above this is a mishit
+    lateMissError: 0.3, // error assigned when the meter runs out un-clicked
+    minPower: 0.1, // floor so a tiny power click still moves the ball
+    // A clean (non-mishit) miss reduces speed by up to this fraction as
+    // error approaches mishitError...
+    carryPenalty: 0.15,
+    // ...and wobbles the launch angle by up to +/- this many degrees.
+    angleVarianceDeg: 6,
+    mishit: {
+      speedFactor: 0.45, // of the power-scaled speed
+      angleFactor: 0.35, // of the base launch angle (low, ugly shot)
+    },
   },
 
   tee: {
@@ -44,6 +66,12 @@ export const CONFIG = {
     pxPerMeter: 4.2,
     groundScreenY: 480, // canvas y of the ground line
     ballRadiusPx: 5, // drawn oversized for visibility
+    meter: {
+      x: 280, // left edge, canvas px
+      y: 505, // top edge, canvas px
+      width: 400,
+      height: 18,
+    },
     colors: {
       skyTop: '#8ec9f0',
       skyBottom: '#d8ecf7',
@@ -52,6 +80,13 @@ export const CONFIG = {
       ball: '#ffffff',
       ballOutline: '#5b6770',
       hudText: '#17301c',
+      meterTrack: '#2b3440',
+      meterFill: '#e8b23a',
+      meterPowerLock: '#e05252',
+      meterSweetSpot: '#3ddc68',
+      meterNeedle: '#ffffff',
+      shotGood: '#1d7a34',
+      shotBad: '#a03232',
     },
   },
 };
